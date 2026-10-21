@@ -1,2 +1,11 @@
+0.1.0
+- Protocole « thread » (PROTOCOL_ID 30) : modèles ThreadDevice et ThreadVariable, admin
+- Lecture CoAP GET (texte brut ou JSON), écriture PUT
+- Contrôle des codes CoAP (2.05, 2.04, erreurs 4.xx/5.xx)
+- Délai d'attente, tentatives, message unique quand un nœud devient injoignable
+- Mode push : écoute CoAP, enregistrement à réception, filtre sur l'adresse du nœud
+- Heartbeat (alerte « capteur muet ») et prise en compte de cov_increment
+- Nœud Thread simulé (python -m pyscada.thread.simulator) et tests sur SQLite
+
 0.0.1
 - Structure du paquet pyscada-thread
