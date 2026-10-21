@@ -15,6 +15,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class NodeUnreachable(Exception):
+    """Aucune réponse du nœud après toutes les tentatives."""
+
+
 class GenericDevice(GenericHandlerDevice):
     """
     Handler Thread : lit les ressources CoAP du nœud.
@@ -25,6 +29,8 @@ class GenericDevice(GenericHandlerDevice):
         self.driver_ok = driver_ok
         self._protocol = PROTOCOL_ID
         self.coap = None
+        # vrai dès qu'une requête du cycle en cours est restée sans réponse
+        self._unreachable = False
 
     def connect(self):
         if super().connect() == False:
@@ -36,10 +42,14 @@ class GenericDevice(GenericHandlerDevice):
         return True
 
     def before_read(self):
-        if not super().before_read():
-            return False
+        self._unreachable = False
+        return super().before_read()
+
+    def after_read(self):
+        # Un seul message quand le nœud devient injoignable, un seul quand il revient.
+        self.inst = None if self._unreachable else self.coap
         self.accessibility()
-        return True
+        return super().after_read()
 
     def disconnect(self):
         # le client CoAP reste ouvert entre deux lectures
@@ -51,17 +61,42 @@ class GenericDevice(GenericHandlerDevice):
         tv = variable_instance.threadvariable
         return td.base_uri() + tv.path()
 
-    def read_data(self, variable_instance):
-        tv = variable_instance.threadvariable
+    def send(self, method, uri, *args):
+        """
+        Requête CoAP avec les tentatives du device. Une erreur CoAP (4.xx, 5.xx)
+        n'est pas retentée : le nœud a répondu, il est donc joignable.
+        """
         td = self._device.threaddevice
+        attempts = td.retries + 1
+        for attempt in range(1, attempts + 1):
+            try:
+                return getattr(self.coap, method)(uri, *args, td.timeout)
+            except CoapResponseError:
+                raise
+            except Exception as e:
+                error = e
+                logger.debug(
+                    f"{self._device} - {method.upper()} {uri} attempt {attempt}/{attempts} failed : {e!r}"
+                )
+        self._unreachable = True
+        self._not_accessible_reason = (
+            f"no CoAP response from {td.base_uri()} after {attempts} attempt(s), "
+            f"timeout {td.timeout} s ({error!r})"
+        )
+        raise NodeUnreachable(self._not_accessible_reason)
+
+    def read_data(self, variable_instance):
+        if self._unreachable:
+            # inutile d'attendre le délai pour chaque variable d'un nœud muet
+            return None
+        tv = variable_instance.threadvariable
         uri = self.uri(variable_instance)
         try:
-            response = self.coap.get(uri, td.timeout)
+            response = self.send("get", uri)
         except CoapResponseError as e:
             logger.warning(f"{self._device} - GET {e}")
             return None
-        except Exception as e:
-            logger.info(f"{self._device} - GET {uri} failed : {e!r}")
+        except NodeUnreachable:
             return None
         try:
             return parse_payload(response.payload, tv.payload_format, tv.json_key)
@@ -80,15 +115,14 @@ class GenericDevice(GenericHandlerDevice):
         if variable is None or not self.connect():
             return None
         tv = variable.threadvariable
-        td = self._device.threaddevice
         uri = self.uri(variable)
         payload = format_payload(value, tv.payload_format, tv.json_key)
         try:
-            self.coap.put(uri, payload, td.timeout)
+            self.send("put", uri, payload)
         except CoapResponseError as e:
             logger.warning(f"{self._device} - PUT {payload!r} refused : {e}")
             return None
-        except Exception as e:
-            logger.info(f"{self._device} - PUT {uri} {payload!r} failed : {e!r}")
+        except NodeUnreachable as e:
+            logger.warning(f"{self._device} - PUT {uri} {payload!r} failed : {e}")
             return None
         return value
