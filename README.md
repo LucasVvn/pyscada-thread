@@ -1,4 +1,4 @@
-# PyScada-Thread
+# pyscada-thread
 
 Plugin PyScada `pyscada-thread`.
 
