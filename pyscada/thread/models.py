@@ -40,6 +40,11 @@ class ThreadDevice(models.Model):
         default=5683,
         help_text="Push mode: UDP port PyScada listens on. Use one port per push device.",
     )
+    heartbeat_timeout = models.PositiveIntegerField(
+        default=0,
+        help_text="Push mode: seconds without any message before the node is reported "
+        "as silent, e.g. 2 x the node heartbeat. 0 disables the check.",
+    )
 
     protocol_id = PROTOCOL_ID
 

@@ -75,3 +75,51 @@ class PushModeTest(TestCase):
             response = push(port, "/temperature", b"chaud")
 
         self.assertEqual(response.code, aiocoap.BAD_REQUEST)
+
+
+class HeartbeatAndCovTest(TestCase):
+    def tearDown(self):
+        self.dev._h.listener.stop()
+
+    def make(self, **kwargs):
+        port = free_udp_port()
+        device = make_device(port=5683, mode=1, listen_port=port, **kwargs)
+        return device, port
+
+    def test_silent_node_alert_once_then_back(self):
+        device, port = self.make(heartbeat_timeout=60)
+        make_variable(device, "temperature", "/temperature")
+        self.dev = device_instance(device)
+        self.dev.request_data()
+        listener = self.dev._h.listener
+
+        listener.started -= 120  # 2 minutes sans nouvelles
+        with self.assertLogs("pyscada.thread.devices", "INFO") as logs:
+            self.dev.request_data()
+            self.dev.request_data()
+            push(port, "/temperature", b"21.0")
+            self.assertEqual(len(self.dev.request_data()), 1)
+
+        self.assertEqual(len(logs.output), 2)
+        self.assertIn("silent node", logs.output[0])
+        self.assertIn("sending again", logs.output[1])
+
+    def test_cov_increment_skips_small_changes(self):
+        device, port = self.make()
+        make_variable(device, "temperature", "/temperature", cov_increment=0.5)
+        self.dev = device_instance(device)
+        self.dev.request_data()
+
+        push(port, "/temperature", b"21.4")
+        first = self.dev.request_data()[0]
+        self.assertEqual(len(first.cached_values_to_write), 1)
+
+        first.erase_cache()
+        push(port, "/temperature", b"21.6")  # variation 0,2 < 0,5 : non stockée
+        self.assertEqual(first.cached_values_to_write, [])
+        self.dev.request_data()
+        self.assertEqual(first.cached_values_to_write, [])
+
+        push(port, "/temperature", b"22.4")  # variation 0,8 : stockée
+        self.dev.request_data()
+        self.assertEqual(first.cached_values_to_write[-1][1], 22.4)

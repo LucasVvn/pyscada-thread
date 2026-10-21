@@ -33,6 +33,7 @@ class GenericDevice(GenericHandlerDevice):
         # vrai dès qu'une requête du cycle en cours est restée sans réponse
         self._unreachable = False
         self.listener = None
+        self._silent = False
 
     def connect(self):
         if super().connect() == False:
@@ -65,8 +66,30 @@ class GenericDevice(GenericHandlerDevice):
                 if item.update_values([value], [timestamp], erase_cache=erase_cache):
                     if item not in output:
                         output.append(item)
+            self.check_heartbeat()
         self.after_read()
         return output
+
+    def check_heartbeat(self):
+        """
+        Capteur muet : aucun envoi depuis heartbeat_timeout secondes.
+        Alerte une seule fois, et un message quand le nœud se manifeste à nouveau.
+        """
+        limit = self._device.threaddevice.heartbeat_timeout
+        if not limit:
+            return
+        silent_for = self.listener.silent_for()
+        if silent_for > limit:
+            self._unreachable = True
+            self._not_accessible_reason = (
+                f"silent node, no push for {silent_for:.0f} s (limit {limit} s)"
+            )
+            if not self._silent:
+                self._silent = True
+                logger.warning(f"{self._device} - {self._not_accessible_reason}")
+        elif self._silent:
+            self._silent = False
+            logger.info(f"{self._device} - node is sending again")
 
     def before_read(self):
         self._unreachable = False

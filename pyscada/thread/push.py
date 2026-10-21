@@ -69,6 +69,7 @@ class PushListener:
         self.node_address = device.threaddevice.ipv6_address
         self.received = queue.Queue()
         self.last_message = None
+        self.started = None
         self.site = resource.Site()
         self.paths = {}
         for variable in variables.values():
@@ -84,6 +85,7 @@ class PushListener:
     def start(self):
         port = self.device.threaddevice.listen_port
         self.context = self.runner.start_server(self.site, ("::", port))
+        self.started = time_ns() / 1000000000
         logger.info(f"{self.device} - listening for CoAP pushes on UDP port {port}")
 
     def stop(self):
@@ -109,6 +111,13 @@ class PushListener:
         self.last_message = timestamp
         self.received.put((res.variable_id, value, timestamp))
         return aiocoap.Message(code=aiocoap.CHANGED)
+
+    def silent_for(self, now=None):
+        """Secondes écoulées depuis le dernier envoi (ou le démarrage de l'écoute)."""
+        if now is None:
+            now = time_ns() / 1000000000
+        last = self.last_message if self.last_message is not None else self.started
+        return now - last
 
     def drain(self):
         """Renvoie et vide la liste des (variable_id, valeur, horodatage) reçus."""
