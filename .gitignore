@@ -38,3 +38,4 @@ staticfiles/
 
 # Base SQLite des tests
 tests/test.sqlite3
+*.egg-info.old
