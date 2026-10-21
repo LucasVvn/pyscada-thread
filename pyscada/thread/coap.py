@@ -22,6 +22,33 @@ except ImportError:
     driver_ok = False
 
 
+class CoapResponseError(Exception):
+    """Le nœud a répondu avec un code d'erreur CoAP (4.xx ou 5.xx)."""
+
+    def __init__(self, uri, response):
+        self.uri = uri
+        self.code = response.code
+        self.payload = response.payload
+        detail = response.payload.decode("utf-8", "replace").strip()
+        message = f"{uri} -> {response.code}"
+        if detail:
+            message += f" ({detail})"
+        super().__init__(message)
+
+
+def check_response(uri, response, expected):
+    """
+    Vérifie le code de réponse : 2.05 Content attendu pour un GET,
+    2.04 Changed pour un PUT. Un autre code 2.xx est accepté, un 4.xx ou
+    5.xx lève CoapResponseError.
+    """
+    if not response.code.is_successful():
+        raise CoapResponseError(uri, response)
+    if response.code != expected:
+        logger.debug(f"{uri} -> {response.code}, {expected} expected")
+    return response
+
+
 class CoapRunner:
     """
     Boucle asyncio dans un thread, partagée par toutes les requêtes du process.
@@ -57,10 +84,14 @@ class CoapRunner:
         )
 
     def get(self, uri, timeout):
-        return self.request(aiocoap.GET, uri, timeout=timeout)
+        """GET, 2.05 Content attendu."""
+        response = self.request(aiocoap.GET, uri, timeout=timeout)
+        return check_response(uri, response, aiocoap.CONTENT)
 
     def put(self, uri, payload, timeout):
-        return self.request(aiocoap.PUT, uri, payload, timeout)
+        """PUT, 2.04 Changed attendu."""
+        response = self.request(aiocoap.PUT, uri, payload, timeout)
+        return check_response(uri, response, aiocoap.CHANGED)
 
     def stop(self):
         if self._client is not None:

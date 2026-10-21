@@ -54,3 +54,37 @@ class SimulatedNodeWriteTest(TestCase):
 
         self.assertEqual([v.pk for v in updated], [relais.pk])
         self.assertEqual(self.node.site._resources[("relais",)].state, 1)
+
+
+class SimulatedNodeResponseCodeTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.node = SimulatedNode().start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.node.stop()
+        super().tearDownClass()
+
+    def test_unknown_resource_is_not_recorded(self):
+        device = make_device(self.node.port)
+        make_variable(device, "inconnue", "/n-existe-pas")
+        dev = device_instance(device)
+
+        with self.assertLogs("pyscada.thread.devices", "WARNING") as logs:
+            updated = dev.request_data()
+
+        self.assertEqual(updated, [])
+        self.assertIn("4.04 Not Found", logs.output[0])
+
+    def test_refused_put_is_failed(self):
+        device = make_device(self.node.port)
+        relais = make_variable(device, "relais", "/relais", writeable=True)
+        dev = device_instance(device)
+
+        with self.assertLogs("pyscada.thread.devices", "WARNING") as logs:
+            updated = dev.write_data(relais.pk, 7, task=None)
+
+        self.assertEqual(updated, [])
+        self.assertIn("4.00 Bad Request", logs.output[0])

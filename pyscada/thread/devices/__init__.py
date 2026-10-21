@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from .. import PROTOCOL_ID
-from ..coap import driver_ok, get_runner, parse_payload, format_payload
+from ..coap import (
+    driver_ok,
+    get_runner,
+    parse_payload,
+    format_payload,
+    CoapResponseError,
+)
 from pyscada.device import GenericHandlerDevice
 
 import logging
@@ -51,6 +57,9 @@ class GenericDevice(GenericHandlerDevice):
         uri = self.uri(variable_instance)
         try:
             response = self.coap.get(uri, td.timeout)
+        except CoapResponseError as e:
+            logger.warning(f"{self._device} - GET {e}")
+            return None
         except Exception as e:
             logger.info(f"{self._device} - GET {uri} failed : {e!r}")
             return None
@@ -76,6 +85,9 @@ class GenericDevice(GenericHandlerDevice):
         payload = format_payload(value, tv.payload_format, tv.json_key)
         try:
             self.coap.put(uri, payload, td.timeout)
+        except CoapResponseError as e:
+            logger.warning(f"{self._device} - PUT {payload!r} refused : {e}")
+            return None
         except Exception as e:
             logger.info(f"{self._device} - PUT {uri} {payload!r} failed : {e!r}")
             return None
