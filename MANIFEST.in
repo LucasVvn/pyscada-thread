@@ -1,0 +1,6 @@
+include AUTHORS
+include LICENSE
+include README.md
+include CHANGELOG.txt
+recursive-include pyscada/thread *
+recursive-exclude * *.pyc
