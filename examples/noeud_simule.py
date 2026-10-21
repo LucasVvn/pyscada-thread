@@ -19,7 +19,7 @@ device, _ = Device.objects.get_or_create(
     defaults=dict(
         protocol=protocol,
         description="Nœud Thread simulé (pyscada.thread.simulator)",
-        polling_interval=60,
+        polling_interval=10,
         active=True,
     ),
 )
