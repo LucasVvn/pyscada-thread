@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-from pyscada.models import Device
+from pyscada.models import Device, Variable
 from . import PROTOCOL_ID
 
 from django.db import models
@@ -52,3 +52,48 @@ class ExtendedThreadDevice(Device):
         proxy = True
         verbose_name = "Thread Device"
         verbose_name_plural = "Thread Devices"
+
+
+class ThreadVariable(models.Model):
+    """
+    Ressource CoAP lue ou écrite pour une variable PyScada.
+    """
+
+    thread_variable = models.OneToOneField(
+        Variable, null=True, blank=True, on_delete=models.CASCADE
+    )
+    resource = models.CharField(
+        max_length=254,
+        help_text="CoAP resource path on the node, e.g. /temperature",
+    )
+    payload_format_choices = (
+        (0, "Plain text"),
+        (1, "JSON"),
+    )
+    payload_format = models.PositiveSmallIntegerField(
+        default=0, choices=payload_format_choices
+    )
+    json_key = models.CharField(
+        max_length=254,
+        null=True,
+        blank=True,
+        help_text="With JSON payloads: key of the value, nested keys separated by spaces",
+    )
+
+    protocol_id = PROTOCOL_ID
+
+    def path(self):
+        return "/" + self.resource.strip("/")
+
+    def __str__(self):
+        return self.id.__str__() + "-" + self.thread_variable.name
+
+
+class ExtendedThreadVariable(Variable):
+    class Meta:
+        proxy = True
+        verbose_name = "Thread Variable"
+        verbose_name_plural = "Thread Variables"
+
+    def resource(self):
+        return self.threadvariable.resource

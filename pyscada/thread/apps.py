@@ -13,3 +13,6 @@ class PyScadaThreadConfig(AppConfig):
     verbose_name = _("PyScada " + __app_name__)
     path = os.path.dirname(os.path.realpath(__file__))
     default_auto_field = "django.db.models.AutoField"
+
+    def ready(self):
+        __import__("pyscada." + __app_name__.lower() + ".signals")
