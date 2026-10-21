@@ -32,7 +32,7 @@ setup(
         "pyscada>=0.8.0",
         "aiocoap>=0.4.7",
     ],
-    packages=find_namespace_packages(exclude=["project", "project.*", "tests", "tests.*"]),
+    packages=find_namespace_packages(exclude=["project", "project.*", "tests", "tests.*", "examples", "examples.*"]),
     include_package_data=True,
     zip_safe=False,
 )
