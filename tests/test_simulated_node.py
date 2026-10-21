@@ -30,3 +30,27 @@ class SimulatedNodeReadTest(TestCase):
         self.assertEqual(values, {"temperature": 21.4, "humidite": 48})
         self.assertIn(temperature.pk, dev.variables)
         self.assertIn(humidite.pk, dev.variables)
+
+
+class SimulatedNodeWriteTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.node = SimulatedNode().start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.node.stop()
+        super().tearDownClass()
+
+    def test_put_relay(self):
+        device = make_device(self.node.port)
+        relais = make_variable(
+            device, "relais", "/relais", value_class="BOOLEAN", writeable=True
+        )
+        dev = device_instance(device)
+
+        updated = dev.write_data(relais.pk, 1, task=None)
+
+        self.assertEqual([v.pk for v in updated], [relais.pk])
+        self.assertEqual(self.node.site._resources[("relais",)].state, 1)

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from .. import PROTOCOL_ID
-from ..coap import driver_ok, get_runner, parse_payload
+from ..coap import driver_ok, get_runner, parse_payload, format_payload
 from pyscada.device import GenericHandlerDevice
 
 import logging
@@ -61,3 +61,22 @@ class GenericDevice(GenericHandlerDevice):
                 f"{self._device} - cannot read value from {uri} : {response.payload!r} ({e})"
             )
             return None
+
+    def write_data(self, variable_id, value, task):
+        """
+        PUT de la valeur sur la ressource CoAP de la variable.
+        Renvoie la valeur écrite si le nœud l'a acceptée, None sinon.
+        """
+        variable = self._variables.get(variable_id)
+        if variable is None or not self.connect():
+            return None
+        tv = variable.threadvariable
+        td = self._device.threaddevice
+        uri = self.uri(variable)
+        payload = format_payload(value, tv.payload_format, tv.json_key)
+        try:
+            self.coap.put(uri, payload, td.timeout)
+        except Exception as e:
+            logger.info(f"{self._device} - PUT {uri} {payload!r} failed : {e!r}")
+            return None
+        return value

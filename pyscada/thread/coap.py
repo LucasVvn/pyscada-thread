@@ -50,11 +50,17 @@ class CoapRunner:
         message = aiocoap.Message(code=code, uri=uri, payload=payload)
         return await context.request(message).response
 
-    def get(self, uri, timeout):
-        """GET uri, renvoie la réponse aiocoap (code, payload)."""
+    def request(self, code, uri, payload=b"", timeout=5.0):
+        """Envoie une requête CoAP et renvoie la réponse aiocoap (code, payload)."""
         return self.run(
-            asyncio.wait_for(self._request(aiocoap.GET, uri), timeout), timeout + 1
+            asyncio.wait_for(self._request(code, uri, payload), timeout), timeout + 1
         )
+
+    def get(self, uri, timeout):
+        return self.request(aiocoap.GET, uri, timeout=timeout)
+
+    def put(self, uri, payload, timeout):
+        return self.request(aiocoap.PUT, uri, payload, timeout)
 
     def stop(self):
         if self._client is not None:
@@ -97,6 +103,25 @@ def parse_payload(payload, payload_format=0, json_key=None):
                     value = value[key]
         return _to_number(value)
     return _to_number(payload)
+
+
+def format_payload(value, payload_format=0, json_key=None):
+    """
+    Prépare le contenu d'un PUT : « 1 »/« 0 » pour un booléen, « 21 » plutôt que
+    « 21.0 », ou un objet JSON {clé: valeur} si la variable est en JSON.
+    """
+    if isinstance(value, bool):
+        value = int(value)
+    elif isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if payload_format == 1:
+        import json
+
+        if json_key:
+            for key in reversed(json_key.split()):
+                value = {key: value}
+        return json.dumps(value).encode("utf-8")
+    return str(value).encode("utf-8")
 
 
 def _to_number(value):
