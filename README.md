@@ -75,7 +75,7 @@ Device d'exemple qui interroge ce nœud (voir l'en-tête du fichier) : [`example
 
 Vérifier un nœud à la main :
 ```bash
-aiocoap-client coap://[::1]:5683/temperature
+aiocoap-client 'coap://[::1]:5683/temperature'
 ```
 
 ## Développement
