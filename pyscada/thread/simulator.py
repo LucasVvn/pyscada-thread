@@ -5,8 +5,9 @@ Nœud Thread simulé : petit serveur CoAP pour tester le plugin sans matériel.
     python -m pyscada.thread.simulator --bind ::1 --port 5683
 
 Ressources :
-    GET /temperature   texte brut, ex. « 21.4 » (varie légèrement à chaque lecture)
-    GET /mesures       JSON, ex. {"temperature": 21.4, "humidite": 48}
+    GET /temperature   texte brut, ex. « 21.4 » (varie à chaque lecture, 18 à 26 °C)
+    GET /co2           texte brut, ex. « 640 » (varie à chaque lecture, 400 à 1500 ppm)
+    GET /mesures       JSON, ex. {"temperature": 21.4, "co2": 640, "humidite": 48}
     GET/PUT /relais    « 0 » ou « 1 »
 """
 from __future__ import unicode_literals
@@ -20,26 +21,51 @@ import aiocoap
 import aiocoap.resource as resource
 
 
-class TemperatureResource(resource.Resource):
-    def __init__(self, value=21.4, noise=0.2):
+class WanderingResource(resource.Resource):
+    """Mesure qui dérive au hasard entre deux bornes, pour remplir une courbe."""
+
+    def __init__(self, value, noise, low, high, digits=2):
         super().__init__()
         self.value = value
         self.noise = noise
+        self.low = low
+        self.high = high
+        self.digits = digits
+
+    def step(self):
+        value = self.value + random.uniform(-self.noise, self.noise)
+        value = min(max(value, self.low), self.high)
+        self.value = round(value, self.digits) if self.digits else int(round(value))
+        return self.value
 
     async def render_get(self, request):
-        self.value = round(self.value + random.uniform(-self.noise, self.noise), 2)
         return aiocoap.Message(
-            code=aiocoap.CONTENT, payload=str(self.value).encode("utf-8")
+            code=aiocoap.CONTENT, payload=str(self.step()).encode("utf-8")
         )
 
 
+class TemperatureResource(WanderingResource):
+    def __init__(self, value=21.4, noise=0.3):
+        super().__init__(value, noise, 18, 26, digits=2)
+
+
+class Co2Resource(WanderingResource):
+    def __init__(self, value=640, noise=25):
+        super().__init__(value, noise, 400, 1500, digits=0)
+
+
 class MeasuresResource(resource.Resource):
-    def __init__(self, temperature):
+    def __init__(self, temperature, co2):
         super().__init__()
         self.temperature = temperature
+        self.co2 = co2
 
     async def render_get(self, request):
-        payload = {"temperature": self.temperature.value, "humidite": 48}
+        payload = {
+            "temperature": self.temperature.value,
+            "co2": self.co2.value,
+            "humidite": 48,
+        }
         return aiocoap.Message(
             code=aiocoap.CONTENT, payload=json.dumps(payload).encode("utf-8")
         )
@@ -61,11 +87,13 @@ class RelayResource(resource.Resource):
         return aiocoap.Message(code=aiocoap.CHANGED)
 
 
-def build_site(temperature=21.4, noise=0.2):
+def build_site(temperature=21.4, noise=0.3, co2=640, co2_noise=25):
     site = resource.Site()
     temp = TemperatureResource(temperature, noise)
+    carbon = Co2Resource(co2, co2_noise)
     site.add_resource(["temperature"], temp)
-    site.add_resource(["mesures"], MeasuresResource(temp))
+    site.add_resource(["co2"], carbon)
+    site.add_resource(["mesures"], MeasuresResource(temp, carbon))
     site.add_resource(["relais"], RelayResource())
     return site
 

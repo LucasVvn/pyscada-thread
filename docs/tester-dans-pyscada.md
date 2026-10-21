@@ -10,7 +10,7 @@ Dans un terminal, à laisser ouvert :
 /home/pyscada/.venv/bin/python -m pyscada.thread.simulator --bind ::1 --port 5683
 ```
 
-Ressources : `/temperature` (texte, ~21.4, varie un peu), `/mesures` (JSON `{"temperature": …, "humidite": 48}`), `/relais` (GET/PUT `0`/`1`).
+Ressources : `/temperature` (texte, 18 à 26 °C), `/co2` (texte, 400 à 1500 ppm), `/mesures` (JSON `{"temperature": …, "co2": …, "humidite": 48}`), `/relais` (GET/PUT `0`/`1`). Température et CO2 changent à chaque lecture : la courbe se remplit.
 
 Vérification dans un autre terminal :
 
@@ -46,7 +46,7 @@ Enregistrer, puis **Variables** > Ajouter :
 
 Pour l'écriture, une 2e variable `SimuRelais` : value class `BOOLEAN`, **Writeable** coché, resource `/relais`.
 
-Raccourci : `examples/noeud_simule.py` crée ce device et ces deux variables d'un coup :
+Raccourci : `examples/noeud_simule.py` crée d'un coup ce device, les variables `SimuTemperature`, `SimuCO2` (resource `/co2`, unité `ppm`) et `SimuRelais`, ainsi qu'une vue **Thread** de l'IHM avec un graphique température + CO2 :
 
 ```bash
 cd /var/www/pyscada/PyScadaServer && sudo -u pyscada /home/pyscada/.venv/bin/python manage.py shell < ~/Documents/pyscada-thread/examples/noeud_simule.py
@@ -61,7 +61,7 @@ bash ~/Documents/pyscada-dev/pyscada-dev.sh restart
 ## 3. Voir les valeurs
 
 - Logs : `journalctl -u pyscada -n 50` doit montrer `pyscada.thread` et `Connected to device : noeud-simule`.
-- IHM : admin > HMI > **Charts** > ajouter un graphique avec `SimuTemperature`, le mettre dans une page (comme la page `meteo`), puis l'ouvrir dans l'IHM.
+- IHM : avec le raccourci, ouvrir la vue **Thread** depuis l'accueil de l'IHM (http://localhost:8080). À la main : admin > HMI > **Charts** > ajouter un graphique avec `SimuTemperature` et `SimuCO2`, le mettre dans une page via un **Widget**, et ajouter la page à une **View**.
 - Écriture : un widget *Control item* sur `SimuRelais` dans l'IHM ; le terminal du simulateur ne log rien, mais `aiocoap-client 'coap://[::1]:5683/relais'` doit renvoyer la nouvelle valeur.
 - Panne : arrêter le simulateur (Ctrl+C) → un seul message « not accessible » dans les logs ; le relancer → « Connected ».
 
