@@ -22,6 +22,7 @@ class ThreadDeviceAdmin(DeviceAdmin):
     list_display = DeviceAdmin.list_display + (
         "ipv6_address",
         "port",
+        "mode",
     )
 
     def ipv6_address(self, obj):
@@ -29,6 +30,9 @@ class ThreadDeviceAdmin(DeviceAdmin):
 
     def port(self, obj):
         return obj.threaddevice.port
+
+    def mode(self, obj):
+        return obj.threaddevice.get_mode_display()
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "protocol":

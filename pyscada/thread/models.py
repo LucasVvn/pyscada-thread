@@ -31,6 +31,15 @@ class ThreadDevice(models.Model):
     retries = models.PositiveSmallIntegerField(
         default=2, help_text="Number of new attempts after a failed request"
     )
+    mode_choices = (
+        (0, "Polling (PyScada sends GET requests)"),
+        (1, "Push (the node sends POST/PUT requests to PyScada)"),
+    )
+    mode = models.PositiveSmallIntegerField(default=0, choices=mode_choices)
+    listen_port = models.PositiveIntegerField(
+        default=5683,
+        help_text="Push mode: UDP port PyScada listens on. Use one port per push device.",
+    )
 
     protocol_id = PROTOCOL_ID
 
@@ -39,6 +48,9 @@ class ThreadDevice(models.Model):
             return self.thread_device
         except:
             return None
+
+    def is_push(self):
+        return self.mode == 1
 
     def base_uri(self):
         return f"coap://[{self.ipv6_address}]:{self.port}"

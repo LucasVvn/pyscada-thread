@@ -93,6 +93,16 @@ class CoapRunner:
         response = self.request(aiocoap.PUT, uri, payload, timeout)
         return check_response(uri, response, aiocoap.CHANGED)
 
+    def start_server(self, site, bind):
+        """Démarre un serveur CoAP (mode push) et renvoie son contexte."""
+        return self.run(aiocoap.Context.create_server_context(site, bind=bind), 10)
+
+    def stop_server(self, context):
+        try:
+            self.run(context.shutdown(), 5)
+        except Exception:
+            logger.debug("CoAP server shutdown failed", exc_info=True)
+
     def stop(self):
         if self._client is not None:
             try:

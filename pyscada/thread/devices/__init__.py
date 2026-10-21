@@ -8,6 +8,7 @@ from ..coap import (
     format_payload,
     CoapResponseError,
 )
+from ..push import PushListener
 from pyscada.device import GenericHandlerDevice
 
 import logging
@@ -31,6 +32,7 @@ class GenericDevice(GenericHandlerDevice):
         self.coap = None
         # vrai dès qu'une requête du cycle en cours est restée sans réponse
         self._unreachable = False
+        self.listener = None
 
     def connect(self):
         if super().connect() == False:
@@ -39,7 +41,32 @@ class GenericDevice(GenericHandlerDevice):
         if self.coap is None:
             self.coap = get_runner()
         self.inst = self.coap
+        if self._device.threaddevice.is_push() and self.listener is None:
+            listener = PushListener(self.coap, self._device, self._variables)
+            try:
+                listener.start()
+            except OSError as e:
+                self._not_accessible_reason = f"cannot listen for pushes : {e}"
+                self.inst = None
+                return False
+            self.listener = listener
         return True
+
+    def read_data_all(self, variables_dict, erase_cache=False):
+        if not self._device.threaddevice.is_push():
+            return super().read_data_all(variables_dict, erase_cache)
+        # Mode push : on enregistre ce que le nœud a envoyé depuis le dernier passage.
+        output = []
+        if self.before_read():
+            for variable_id, value, timestamp in self.listener.drain():
+                item = variables_dict.get(variable_id)
+                if item is None or not item.readable:
+                    continue
+                if item.update_values([value], [timestamp], erase_cache=erase_cache):
+                    if item not in output:
+                        output.append(item)
+        self.after_read()
+        return output
 
     def before_read(self):
         self._unreachable = False
